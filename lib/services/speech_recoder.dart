@@ -1,12 +1,22 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io'; // Required for directory operations
 import 'dart:developer';
 
+import 'package:test_ai/services/speech_to_text.dart';
+
 class SpeechRecorderService {
   late FlutterSoundRecorder _mRecorder;
   bool _isRecorderInitialized = false;
+
+  bool isVoiceDetected = false;
+  Timer? timer;
+  StreamSubscription? recorderSubscription;
+  double decibel = 0;
 
   SpeechRecorderService() {
     _mRecorder = FlutterSoundRecorder();
@@ -21,6 +31,7 @@ class SpeechRecorderService {
 
     // Open the recorder
     await _mRecorder.openRecorder();
+
     _isRecorderInitialized = true;
   }
 
@@ -30,37 +41,34 @@ class SpeechRecorderService {
     }
   }
 
-  Future<String> getFilePath() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final path = '${directory.path}/temp.wav';
-
-    // Ensure the directory exists
-    if (!await Directory(directory.path).exists()) {
-      await Directory(directory.path).create(recursive: true);
-    }
-
-    log('Path from recorder: $path');
-    return path;
+  Future<String> getFilePath(String extension) async {
+    final directory =
+        await getApplicationDocumentsDirectory(); // Internal storage
+    return '${directory.path}/audio.$extension'; // e.g., audio.wav or audio.mp4
   }
 
   Future<void> startRecording() async {
-    if (!_isRecorderInitialized) {
-      await initRecorder();
-    }
-
-    final filePath = await getFilePath();
-    await _mRecorder.startRecorder(toFile: filePath);
-    log('Recording started at $filePath');
+    // or 'mp4', 'aac'
+    final filePath = await getFilePath('mp4');
+    await _mRecorder.startRecorder(
+      toFile: filePath,
+      codec: Codec.aacMP4,
+    );
+    log("Strat from : $filePath");
+   
   }
 
   Future<String?> stopRecording() async {
-    if (!_isRecorderInitialized) {
-      log('Recorder is not initialized');
+    try {
+      final path = await _mRecorder.stopRecorder();
+      if (path == null || path.isEmpty) {
+        throw Exception('Error: File path is invalid or recording not saved.');
+      }
+      print('File saved at: $path');
+      return path;
+    } catch (e) {
+      print('Error stopping recorder: $e');
       return null;
     }
-
-    final filePath = await _mRecorder.stopRecorder();
-    log('Recording stopped. File saved at: $filePath');
-    return filePath;
   }
 }

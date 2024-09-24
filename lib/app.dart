@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:speech_to_text_ultra/speech_to_text_ultra.dart';
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -13,99 +15,55 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final stt.SpeechToText _speechToText = stt.SpeechToText();
-  bool _speechEnabled = false;
-  String _lastWords = '';
-  bool _isListening = false;
+  bool mIsListening = false;
+  String mEntireResponse = '';
+  String mLiveResponse = '';
 
-  @override
-  void initState() {
-    super.initState();
-    _initSpeech();
-  }
-
-  /// This has to happen only once per app
-  void _initSpeech() async {
-    _speechEnabled = await _speechToText.initialize();
-
-    setState(() {});
-  }
-
-  /// Each time to start a speech recognition session
-  void _startListening() async {
-    if (_speechEnabled && !_isListening) {
-      // Set the listening state to true
-      setState(() {
-        _isListening = true;
-      });
-      await _speechToText.listen(
-        onResult: _onSpeechResult,
-        listenFor: const Duration(seconds: 60), // Increase duration
-
-        onSoundLevelChange: (level) {
-          log("voice level is : $level");
-        },
-      );
-    }
-  }
 
  
-  /// listen method.
-  void _stopListening() async {
-    await _speechToText.stop();
-    setState(() {
-      _isListening = false; // Update the listening state
-    });
-  }
-
-  
-  void _onSpeechResult(SpeechRecognitionResult result) {
-    setState(() {
-      _lastWords = result.recognizedWords;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
+        backgroundColor: Colors.white,
         appBar: AppBar(
-          title: const Text('Speech Demo'),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(16),
-                child: const Text(
-                  'Recognized words:',
-                  style: TextStyle(fontSize: 20.0),
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    // If listening is active show the recognized words
-                    _isListening
-                        ? _lastWords
-                       
-                        : _speechEnabled
-                            ? 'Tap the microphone to start listening...'
-                            : 'Speech not available',
-                  ),
-                ),
-              ),
-            ],
+          backgroundColor: Colors.teal,
+          centerTitle: true,
+          title: const Text(
+            'Speech To Text Ultra',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
           ),
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed:
-              // If not yet listening for speech start, otherwise stop
-              _isListening ? _stopListening : _startListening,
-          tooltip: 'Listen',
-          child: Icon(_isListening ? Icons.mic : Icons.mic_off),
+        body: Center(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                mIsListening
+                    ? Text('$mEntireResponse $mLiveResponse')
+                    : Text(mEntireResponse),
+                const SizedBox(height: 20),
+                SpeechToTextUltra(
+                  ultraCallback:
+                      (String liveText, String finalText, bool isListening) {
+                    setState(() {
+                      mLiveResponse = liveText;
+                      mEntireResponse = finalText;
+                      mIsListening = isListening;
+                    });
+                  },
+                  toPauseIcon: const Icon(Icons.pause),
+                  toStartIcon: const Icon(Icons.mic),
+                  pauseIconColor: Colors.black,
+                  startIconColor: Colors.black,
+                ),
+                const SizedBox(
+                  height: 10,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

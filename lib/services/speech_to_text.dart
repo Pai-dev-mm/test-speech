@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:http/http.dart' as http;
 import 'package:test_ai/network_api.dart';
 
@@ -30,6 +31,10 @@ class SpeechToTextResponse {
     required this.text,
   });
 }
+
+
+
+
 
 
 /* final String apiKey;
@@ -71,4 +76,4 @@ class SpeechToTextResponse {
     } else {
       throw Exception('Failed to transcribe audio: ${response.body}');
     }
-  } */
+  } */ 
