@@ -41,6 +41,9 @@ dependencies:
   speech_to_text: ^6.3.0
   speech_to_text_ultra: ^0.0.3
   vosk_flutter: ^0.3.48
+  flutter_silero_vad:
+    git:
+      url: https://github.com/char5742/flutter_silero_vad.git
 
 dev_dependencies:
   flutter_lints: ^3.0.0

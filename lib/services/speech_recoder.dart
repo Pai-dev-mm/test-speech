@@ -1,13 +1,11 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io'; // Required for directory operations
+// Required for directory operations
 import 'dart:developer';
 
-import 'package:test_ai/services/speech_to_text.dart';
 
 class SpeechRecorderService {
   late FlutterSoundRecorder _mRecorder;

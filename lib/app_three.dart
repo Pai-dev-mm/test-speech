@@ -1,5 +1,4 @@
-/* import 'dart:async';
-import 'dart:developer';
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -8,7 +7,6 @@ import 'package:flutter/services.dart';
 
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:test_ai/network_api.dart';
 import 'package:test_ai/services/permission.dart';
@@ -29,6 +27,7 @@ class _AppThreeState extends State<AppThree> {
 
   String transcribedText = '';
   MediaStream? _localStream;
+  MediaStreamTrack? _audioTrack;
   // List<int> audioBytes = [];
   bool _isRecording = false;
   // String? filePath = '';
@@ -53,11 +52,14 @@ class _AppThreeState extends State<AppThree> {
 
     _localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
 
+
+  _audioTrack = _localStream?.getAudioTracks().first;
     // Now you can process audio track or save the data
-    _localStream?.getAudioTracks().forEach((track) {
-      track.onEnded = () => log('Audio track ended');
-    });
+    
   }
+
+
+
 
   Future<void> _initializeRecorder() async {
     await _audioRecorder.openRecorder();
@@ -201,4 +203,3 @@ class VoiceToTextRecorder {
     // Update the UI with the final transcription
   }
 }
- */

@@ -1,10 +1,5 @@
-import 'dart:async';
-import 'dart:developer';
 
 import 'package:flutter/material.dart';
-import 'package:speech_to_text/speech_recognition_result.dart';
-import 'package:speech_to_text/speech_recognition_result.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:speech_to_text_ultra/speech_to_text_ultra.dart';
 
 class MyApp extends StatefulWidget {

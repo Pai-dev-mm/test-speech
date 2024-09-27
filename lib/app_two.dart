@@ -3,14 +3,11 @@ import 'dart:developer';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_silero_vad/flutter_silero_vad.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:test_ai/network_api.dart';
 
-import 'package:test_ai/services/permission.dart';
-import 'package:test_ai/services/speech_recoder.dart';
 import 'package:test_ai/services/speech_to_text.dart';
 
 class AppTwo extends StatefulWidget {
@@ -30,9 +27,14 @@ class _AppTwoState extends State<AppTwo> {
   List<Message> transcriptions = [];
   bool isRecording = false;
   String transcribedText = '';
-  
+  DateTime? lastSpeechTime;
   bool type = false;
   Timer? restartTimer;
+  int chunk = 0;
+  final int silenceThreshold = 2000; // time wait for no voice detected
+  StreamSubscription? _recorderSubscription;
+
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -46,45 +48,88 @@ class _AppTwoState extends State<AppTwo> {
   Future<void> initRecorder() async {
     await _mRecorder!.openRecorder();
 
-    await _mRecorder!.setSubscriptionDuration(const Duration(milliseconds: 50));
+    /* await _mRecorder!.setSubscriptionDuration(const Duration(milliseconds: 50));
     // Set up decibel monitoring
     _mRecorder!.onProgress!.listen((event) {
       double amplitude = event.decibels ?? 0.0;
-      if (amplitude > 40) {
+
+      if (amplitude > 46) {
         setState(() {
           isActive = true;
         });
         resetInactivityTimer();
 
-        print('Voice detected! , decibel : $amplitude');
+        log('Voice detected! , decibel : $amplitude');
       } else {
         setState(() {
           isActive = false;
         });
-
+        log("Is active  : $isActive");
         if (!isActive) {
           startInactivityTimer();
         }
+      }
+    }); */
+  }
+
+  // Method to scroll to the bottom of the ListView
+  void scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(_scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 100),
+            curve: Curves.bounceIn);
       }
     });
   }
 
   Future<void> startListening() async {
     try {
-      Directory tempDir = await getTemporaryDirectory();
-      _filePath = '${tempDir.path}/temp_audio.mp4';
+      /* Directory tempDir = await getTemporaryDirectory();
+      _filePath = '${tempDir.path}/temp_audio.mp4'; */
+      await _mRecorder!.openRecorder();
 
-      if (!_mRecorder!.isRecording) {
-        await _mRecorder!.startRecorder(
-          toFile: _filePath,
-          codec: Codec.aacMP4,
-        );
+      chunk++;
 
-        setState(() {
-          isRecording = true;
-          transcribedText = 'Listening...';
-        });
-      }
+      _filePath = await getRecordedFilePath();
+
+      await _mRecorder!.startRecorder(
+          toFile: _filePath, codec: Codec.aacMP4, enableVoiceProcessing: true);
+
+      log("start file at $chunk:  $_filePath");
+
+      setState(() {
+        isRecording = true;
+        transcribedText = 'Listening...';
+      });
+
+      //old voice part to cancel
+      _recorderSubscription?.cancel();
+
+      await _mRecorder!
+          .setSubscriptionDuration(const Duration(milliseconds: 600));
+      _recorderSubscription = _mRecorder!.onProgress!.listen((event) {
+        double decibels = event.decibels ?? 0.0;
+        if (decibels > 46) {
+          // Update last speech time if speech is detected
+          lastSpeechTime = DateTime.now();
+          setState(() {
+            isActive = true;
+          });
+        } else {
+          setState(() {
+            isActive = false;
+          });
+          if (lastSpeechTime != null &&
+              DateTime.now().difference(lastSpeechTime!).inMilliseconds >
+                  silenceThreshold) {
+            stopListening();
+            // If silence is detected for longer than the threshold, stop recording
+          }
+        }
+
+        // Check for silence
+      });
 
       log("active or not : $isActive");
     } catch (e) {
@@ -95,18 +140,19 @@ class _AppTwoState extends State<AppTwo> {
   Future<void> stopListening() async {
     try {
       final filePath = await _mRecorder!.stopRecorder();
-      setState(() {
-        isRecording = false;
-      });
-      if (filePath != null) {
+
+      lastSpeechTime = null;
+      // Optionally, close the session if you're done
+      startListening();
+      if (filePath!.isNotEmpty) {
+        log('Audio saved at: $filePath');
         final fileBytes = await _readAudioFile(filePath);
         final response = await _speechToText.recognize(fileBytes);
         if (response.isSuccess) {
           setState(() {
-            transcriptions.add(Message(
-                text: response.text,
-                isUser: true)); // Display the transcribed text
+            transcriptions.add(Message(text: response.text, isUser: true));
           });
+          scrollToBottom(); // Display the transcribed text
         } else {
           setState(() {
             transcriptions
@@ -115,20 +161,28 @@ class _AppTwoState extends State<AppTwo> {
         }
       }
 
-      Timer(const Duration(seconds: 6), () {
+      Timer(const Duration(seconds: 2), () {
         setState(() {
           transcriptions
               .add(Message(text: "How can I help you today?", isUser: false));
         });
+        scrollToBottom();
       });
-
-      restartListeningAfterDelay();
     } catch (e) {
       print('Error stopping recording or recognizing speech: $e');
       setState(() {
         transcribedText = 'Error: $e';
       });
     }
+  }
+
+  Future<String> getRecordedFilePath() async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+    // Create a unique file path for the recorded audio
+    String filePath = 'audio_conversation_part$chunk-$timestamp.mp4';
+
+    return filePath; // Return the path of the saved file
   }
 
   Future<void> stop() async {
@@ -144,26 +198,10 @@ class _AppTwoState extends State<AppTwo> {
     return await file.readAsBytes();
   }
 
-  void startInactivityTimer() {
-    inactivityTimer?.cancel();
-    inactivityTimer = Timer(const Duration(seconds: 6), () {
-      stopListening(); 
-    });
-  }
-
-  
-  void resetInactivityTimer() {
-    if (inactivityTimer != null && inactivityTimer!.isActive) {
-      inactivityTimer?.cancel();
-    }
-  }
-
-  
-  void restartListeningAfterDelay() {
-    restartTimer?.cancel();
-    restartTimer = Timer(const Duration(seconds: 2), () {
-      startListening(); // Auto start recording if voice is detected again
-    });
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -180,6 +218,7 @@ class _AppTwoState extends State<AppTwo> {
                 Expanded(
                   child: ListView.builder(
                     itemCount: transcriptions.length,
+                    controller: _scrollController,
                     itemBuilder: (context, index) {
                       final message = transcriptions[index];
                       return ChatBubble(
@@ -249,3 +288,45 @@ class Message {
 
   Message({required this.text, required this.isUser});
 }
+
+
+
+/* Future<void> saveAudioChunk() async {
+    // Record a short segment (e.g., for a few seconds)
+    await stopListening(); // Stop current recording
+    await Future.delayed(
+        const Duration(seconds: 2)); // Adjust duration as needed
+
+    // Start a new recording for the next chunk
+
+    await startListening();
+    // print('Saved audio chunk at: $filePath');
+  }
+
+void resetInactivityTimer() {
+    if (inactivityTimer != null && inactivityTimer!.isActive) {
+      inactivityTimer?.cancel();
+    }
+  }
+
+  void restartListeningAfterDelay() {
+    restartTimer?.cancel();
+    restartTimer = Timer(const Duration(seconds: 2), () {
+      if (!isRecording) {
+        print("Restarting listening after delay...");
+        startListening(); // Restart recording
+      } // Auto start recording if voice is detected again
+    });
+    
+    void startInactivityTimer() {
+    inactivityTimer?.cancel();
+    inactivityTimer = Timer(const Duration(seconds: 6), () {
+      log("Voice inactive for 6 seconds, stopping recording...");
+
+      stopListening();
+      // Stop recording after 6 seconds of no voice
+    });
+
+    //
+  }
+  } */
