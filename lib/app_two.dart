@@ -7,6 +7,7 @@ import 'package:flutter_silero_vad/flutter_silero_vad.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:test_ai/services/chatgpt_api_services.dart';
 
 import 'package:test_ai/services/speech_to_text.dart';
 
@@ -19,6 +20,7 @@ class AppTwo extends StatefulWidget {
 
 class _AppTwoState extends State<AppTwo> {
   final SpeechToTextService _speechToText = SpeechToTextService();
+  final ChatgptApiService chatgptApiService = ChatgptApiService();
 
   FlutterSoundRecorder? _mRecorder;
   bool isActive = false;
@@ -33,6 +35,8 @@ class _AppTwoState extends State<AppTwo> {
   int chunk = 0;
   final int silenceThreshold = 2000; // time wait for no voice detected
   StreamSubscription? _recorderSubscription;
+  double? ambientNoiseLevel;
+  double dynamicThreshold = 46;
 
   final ScrollController _scrollController = ScrollController();
 
@@ -83,10 +87,48 @@ class _AppTwoState extends State<AppTwo> {
     });
   }
 
+  Future<void> measureAmbientNoise() async {
+    try {
+      await _mRecorder!.openRecorder();
+      _filePath = await getRecordedFilePath();
+
+      await _mRecorder!.startRecorder(
+        toFile: _filePath,
+        codec: Codec.aacMP4,
+        enableVoiceProcessing: true,
+      );
+
+      // Measure for 2 seconds to capture ambient noise
+      int sampleCount = 0;
+      double totalDecibels = 0;
+
+      _recorderSubscription = _mRecorder!.onProgress!.listen((event) {
+        double decibels = event.decibels ?? 0.0;
+        sampleCount++;
+        totalDecibels += decibels;
+
+        // After 2 seconds, stop measuring
+        if (sampleCount >= 3) {
+          ambientNoiseLevel = totalDecibels / sampleCount;
+          dynamicThreshold = ambientNoiseLevel! +
+              6; // Add a buffer of 6 dB to filter out ambient noise
+          log('Ambient noise level: $ambientNoiseLevel dB, Dynamic threshold: $dynamicThreshold dB');
+
+          stopListening(); // Stop ambient noise recording
+        }
+      });
+
+      await Future.delayed(const Duration(seconds: 2));
+    } catch (e) {
+      print('Error measuring ambient noise: $e');
+    }
+  }
+
   Future<void> startListening() async {
     try {
       /* Directory tempDir = await getTemporaryDirectory();
       _filePath = '${tempDir.path}/temp_audio.mp4'; */
+
       await _mRecorder!.openRecorder();
 
       chunk++;
@@ -106,11 +148,27 @@ class _AppTwoState extends State<AppTwo> {
       //old voice part to cancel
       _recorderSubscription?.cancel();
 
+      int sampleCount = 0;
+      double totalDecibels = 0;
+
       await _mRecorder!
           .setSubscriptionDuration(const Duration(milliseconds: 600));
       _recorderSubscription = _mRecorder!.onProgress!.listen((event) {
         double decibels = event.decibels ?? 0.0;
-        if (decibels > 46) {
+
+        sampleCount++;
+        totalDecibels += decibels;
+
+        if (sampleCount >= 3) {
+          ambientNoiseLevel = totalDecibels / sampleCount;
+          dynamicThreshold = ambientNoiseLevel! +
+              6; // Add a buffer of 6 dB to filter out ambient noise
+          log('Ambient noise level: $ambientNoiseLevel dB, Dynamic threshold: $dynamicThreshold dB');
+
+          // Stop ambient noise recording
+        }
+
+        if (decibels > dynamicThreshold) {
           // Update last speech time if speech is detected
           lastSpeechTime = DateTime.now();
           setState(() {
@@ -143,7 +201,7 @@ class _AppTwoState extends State<AppTwo> {
 
       lastSpeechTime = null;
       // Optionally, close the session if you're done
-      startListening();
+
       if (filePath!.isNotEmpty) {
         log('Audio saved at: $filePath');
         final fileBytes = await _readAudioFile(filePath);
@@ -152,7 +210,16 @@ class _AppTwoState extends State<AppTwo> {
           setState(() {
             transcriptions.add(Message(text: response.text, isUser: true));
           });
-          scrollToBottom(); // Display the transcribed text
+          scrollToBottom();
+          final String sendToAi = await chatgptApiService
+              .postMessage(response.text, language: "en-US");
+          log("That is come from ai : $sendToAi");
+          setState(() {
+            transcriptions.add(Message(text: sendToAi, isUser: false));
+          });
+          scrollToBottom();
+
+          // Display the transcribed text
         } else {
           setState(() {
             transcriptions
@@ -160,14 +227,9 @@ class _AppTwoState extends State<AppTwo> {
           });
         }
       }
-
-      Timer(const Duration(seconds: 2), () {
-        setState(() {
-          transcriptions
-              .add(Message(text: "How can I help you today?", isUser: false));
-        });
-        scrollToBottom();
-      });
+      startListening();
+      /* Timer(const Duration(seconds: 2), () async {
+      }); */
     } catch (e) {
       print('Error stopping recording or recognizing speech: $e');
       setState(() {
