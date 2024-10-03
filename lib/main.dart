@@ -3,6 +3,7 @@ import 'package:test_ai/app_two.dart';
 
 void main() {
   runApp(const MaterialApp(
+    debugShowCheckedModeBanner: false,
     home: AppTwo(),
   ));
 }

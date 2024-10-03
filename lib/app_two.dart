@@ -37,6 +37,7 @@ class _AppTwoState extends State<AppTwo> {
   StreamSubscription? _recorderSubscription;
   double? ambientNoiseLevel;
   double dynamicThreshold = 46;
+  bool isProcessing = false;
 
   final ScrollController _scrollController = ScrollController();
 
@@ -87,7 +88,7 @@ class _AppTwoState extends State<AppTwo> {
     });
   }
 
-  Future<void> measureAmbientNoise() async {
+  /* Future<void> measureAmbientNoise() async {
     try {
       await _mRecorder!.openRecorder();
       _filePath = await getRecordedFilePath();
@@ -123,7 +124,7 @@ class _AppTwoState extends State<AppTwo> {
       print('Error measuring ambient noise: $e');
     }
   }
-
+ */
   Future<void> startListening() async {
     try {
       /* Directory tempDir = await getTemporaryDirectory();
@@ -158,31 +159,34 @@ class _AppTwoState extends State<AppTwo> {
 
         sampleCount++;
         totalDecibels += decibels;
+        log("That is sample count : $sampleCount");
 
         if (sampleCount >= 3) {
           ambientNoiseLevel = totalDecibels / sampleCount;
           dynamicThreshold = ambientNoiseLevel! +
-              6; // Add a buffer of 6 dB to filter out ambient noise
+              8; // Add a buffer of 6 dB to filter out ambient noise
           log('Ambient noise level: $ambientNoiseLevel dB, Dynamic threshold: $dynamicThreshold dB');
 
           // Stop ambient noise recording
         }
 
-        if (decibels > dynamicThreshold) {
-          // Update last speech time if speech is detected
-          lastSpeechTime = DateTime.now();
-          setState(() {
-            isActive = true;
-          });
-        } else {
-          setState(() {
-            isActive = false;
-          });
-          if (lastSpeechTime != null &&
-              DateTime.now().difference(lastSpeechTime!).inMilliseconds >
-                  silenceThreshold) {
-            stopListening();
-            // If silence is detected for longer than the threshold, stop recording
+        if (!isProcessing) {
+          if (decibels > dynamicThreshold) {
+            // Update last speech time if speech is detected
+            lastSpeechTime = DateTime.now();
+            setState(() {
+              isActive = true;
+            });
+          } else {
+            setState(() {
+              isActive = false;
+            });
+            if (lastSpeechTime != null &&
+                DateTime.now().difference(lastSpeechTime!).inMilliseconds >
+                    silenceThreshold) {
+              stopListening();
+              // If silence is detected for longer than the threshold, stop recording
+            }
           }
         }
 
@@ -197,18 +201,23 @@ class _AppTwoState extends State<AppTwo> {
 
   Future<void> stopListening() async {
     try {
+      isProcessing = true;
       final filePath = await _mRecorder!.stopRecorder();
 
       lastSpeechTime = null;
       // Optionally, close the session if you're done
 
+      startListening();
       if (filePath!.isNotEmpty) {
         log('Audio saved at: $filePath');
         final fileBytes = await _readAudioFile(filePath);
         final response = await _speechToText.recognize(fileBytes);
         if (response.isSuccess) {
+          final String stoppp = response.text.toLowerCase();
+          if (stoppp.contains("stop")) return stop();
           setState(() {
-            transcriptions.add(Message(text: response.text, isUser: true));
+            transcriptions
+                .add(Message(text: response.text.toLowerCase(), isUser: true));
           });
           scrollToBottom();
           final String sendToAi = await chatgptApiService
@@ -219,15 +228,17 @@ class _AppTwoState extends State<AppTwo> {
           });
           scrollToBottom();
 
+          isProcessing = false;
           // Display the transcribed text
         } else {
           setState(() {
+            isProcessing = false;
             transcriptions
                 .add(Message(text: "failed to recognized", isUser: true));
           });
         }
       }
-      startListening();
+
       /* Timer(const Duration(seconds: 2), () async {
       }); */
     } catch (e) {
@@ -251,6 +262,7 @@ class _AppTwoState extends State<AppTwo> {
     await _mRecorder!.stopRecorder();
 
     setState(() {
+      isProcessing = false;
       isRecording = false;
     });
   }

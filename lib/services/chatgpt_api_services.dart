@@ -6,8 +6,9 @@ import 'package:http/http.dart' as http;
 import 'dart:developer';
 
 class ChatgptApiService {
-  final String _apiKey = "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";
-  final String _baseUrl = 'https://api.openai.com/v1/chat';
+  final String _apiKey = "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";
+  final String _baseUrl =
+      'https://asia-southeast1-aimedicalapp.cloudfunctions.net';
   Future<String> postMessage(String content,
       {String language = 'en-US',
       List<Message>? messages,
@@ -48,7 +49,7 @@ class ChatgptApiService {
               }),
             )
             .timeout(const Duration(seconds: 30));
-        
+
         if (response.statusCode == 200) {
           final responseBody = json.decode(response.body);
           final apiResponse =
