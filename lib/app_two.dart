@@ -43,7 +43,7 @@ class _AppTwoState extends State<AppTwo> {
 
   @override
   void initState() {
-    // TODO: implement initState
+    
     super.initState();
     Permission.microphone.request();
     _mRecorder = FlutterSoundRecorder();
@@ -125,6 +125,7 @@ class _AppTwoState extends State<AppTwo> {
     }
   }
  */
+  
   Future<void> startListening() async {
     try {
       /* Directory tempDir = await getTemporaryDirectory();

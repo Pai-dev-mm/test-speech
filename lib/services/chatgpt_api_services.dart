@@ -5,8 +5,10 @@ import 'package:http/http.dart' as http;
 
 import 'dart:developer';
 
+/* "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"
+'https://asia-southeast1-aimedicalapp.cloudfunctions.net' */
 class ChatgptApiService {
-  final String _apiKey = "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";
+  final String _apiKey = 'wnXj4S1rNmurWUEtLKSVtatlIA';
   final String _baseUrl =
       'https://asia-southeast1-aimedicalapp.cloudfunctions.net';
   Future<String> postMessage(String content,
